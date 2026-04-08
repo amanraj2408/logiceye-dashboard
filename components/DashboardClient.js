@@ -39,10 +39,14 @@ function StatCard({ label, value, accent, helper }) {
   );
 }
 
-export default function DashboardClient({ initialInstallations }) {
+export default function DashboardClient({
+  initialInstallations,
+  dataError: initialDataError = "",
+}) {
   const [installations, setInstallations] = useState(initialInstallations);
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [isHydrated, setIsHydrated] = useState(false);
+  const [dataError, setDataError] = useState(initialDataError);
 
   useEffect(() => {
     setIsHydrated(true);
@@ -56,6 +60,9 @@ export default function DashboardClient({ initialInstallations }) {
         });
 
         if (!response.ok) {
+          if (mounted) {
+            setDataError("Unable to refresh installation data.");
+          }
           return;
         }
 
@@ -64,9 +71,13 @@ export default function DashboardClient({ initialInstallations }) {
         if (mounted) {
           setInstallations(data.installations || []);
           setLastUpdated(new Date());
+          setDataError("");
         }
       } catch (error) {
         console.error("[Dashboard Refresh Error]", error);
+        if (mounted) {
+          setDataError("Unable to refresh installation data.");
+        }
       }
     }
 
@@ -96,6 +107,12 @@ export default function DashboardClient({ initialInstallations }) {
       />
 
       <section className="mx-auto max-w-6xl px-5 py-6">
+        {dataError ? (
+          <div className="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-[13px] text-amber-100">
+            {dataError}
+          </div>
+        ) : null}
+
         <div className="mb-6 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <StatCard
             label="Total Installations"

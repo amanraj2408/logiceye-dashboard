@@ -35,13 +35,25 @@ export async function GET() {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  await connectToDatabase();
+  try {
+    await connectToDatabase();
 
-  const installations = await Installation.find({})
-    .sort({ lastPing: -1, createdAt: -1 })
-    .lean();
+    const installations = await Installation.find({})
+      .sort({ lastPing: -1, createdAt: -1 })
+      .lean();
 
-  return NextResponse.json({
-    installations: installations.map(serializeInstallation),
-  });
+    return NextResponse.json({
+      installations: installations.map(serializeInstallation),
+    });
+  } catch (error) {
+    console.error("[Installations API Error]", error);
+
+    return NextResponse.json(
+      {
+        installations: [],
+        message: "Unable to load installations right now.",
+      },
+      { status: 500 }
+    );
+  }
 }

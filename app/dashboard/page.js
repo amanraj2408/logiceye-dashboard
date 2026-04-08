@@ -38,16 +38,25 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  await connectToDatabase();
+  let installations = [];
+  let dataError = "";
 
-  const installations = await Installation.find({})
-    .sort({ lastPing: -1, createdAt: -1 })
-    .lean();
+  try {
+    await connectToDatabase();
+
+    installations = await Installation.find({})
+      .sort({ lastPing: -1, createdAt: -1 })
+      .lean();
+  } catch (error) {
+    console.error("[Dashboard Page Error]", error);
+    dataError =
+      "Dashboard data is temporarily unavailable. Check MongoDB and Vercel environment settings.";
+  }
 
   return (
     <DashboardClient
       initialInstallations={installations.map(serializeInstallation)}
+      dataError={dataError}
     />
   );
 }
-
