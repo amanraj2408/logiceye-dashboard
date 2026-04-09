@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import InstallationCard from "./InstallationCard";
 import Navbar from "./Navbar";
+import StatusBadge from "./StatusBadge";
 
 function formatRelativeLabel(date) {
   const seconds = Math.round((date.getTime() - Date.now()) / 1000);
@@ -29,12 +29,164 @@ function formatRelativeLabel(date) {
   return "recently";
 }
 
+function formatAbsoluteLabel(timestamp) {
+  if (!timestamp) {
+    return "Waiting for first ping";
+  }
+
+  return new Date(timestamp).toLocaleString("en-US", {
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  });
+}
+
 function StatCard({ label, value, accent, helper }) {
   return (
-    <div className="rounded-2xl border border-gray-800 bg-gray-900/80 p-4 md:p-5">
-      <p className="text-[11px] uppercase tracking-[0.24em] text-gray-500">{label}</p>
-      <p className={`mt-3 text-2xl font-semibold md:text-[2rem] ${accent}`}>{value}</p>
-      <p className="mt-2 text-[13px] leading-6 text-gray-400">{helper}</p>
+    <div className="rounded-xl border border-gray-800 bg-gray-900/80 px-4 py-3">
+      <p className="text-[10px] uppercase tracking-[0.24em] text-gray-500">{label}</p>
+      <div className="mt-2 flex items-end justify-between gap-3">
+        <p className={`text-xl font-semibold leading-none md:text-2xl ${accent}`}>{value}</p>
+        <p className="max-w-[11rem] text-right text-[11px] leading-5 text-gray-400">
+          {helper}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function InstallationDetailsModal({ installation, onClose, isHydrated }) {
+  const cameraCount = installation.cameraDetails?.length || 0;
+
+  useEffect(() => {
+    const handleEscape = (event) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-3xl rounded-2xl border border-gray-800 bg-gray-950 shadow-2xl shadow-black/40">
+        <div className="flex items-start justify-between gap-4 border-b border-gray-800 px-5 py-4">
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.28em] text-gray-500">
+              Installation Details
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold text-white">
+              {installation.ftpUsername}
+            </h2>
+            {installation.location ? (
+              <p className="mt-1 text-sm text-gray-400">{installation.location}</p>
+            ) : null}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <StatusBadge isOnline={installation.isOnline} />
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-300 transition hover:border-gray-500 hover:text-white"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+
+        <div className="grid gap-4 px-5 py-5 md:grid-cols-3">
+          <div className="rounded-xl border border-gray-800 bg-gray-900/80 p-4">
+            <p className="text-[11px] uppercase tracking-[0.24em] text-gray-500">
+              Cameras
+            </p>
+            <p className="mt-2 text-3xl font-semibold text-white">{cameraCount}</p>
+          </div>
+          <div className="rounded-xl border border-gray-800 bg-gray-900/80 p-4">
+            <p className="text-[11px] uppercase tracking-[0.24em] text-gray-500">
+              Last Ping
+            </p>
+            <p className="mt-2 text-sm font-medium text-gray-100">
+              {installation.lastPing && isHydrated
+                ? formatRelativeLabel(new Date(installation.lastPing))
+                : "No ping received yet"}
+            </p>
+            <p className="mt-1 text-xs text-gray-500">
+              {isHydrated
+                ? formatAbsoluteLabel(installation.lastPing)
+                : "Loading timestamp..."}
+            </p>
+          </div>
+          <div className="rounded-xl border border-gray-800 bg-gray-900/80 p-4">
+            <p className="text-[11px] uppercase tracking-[0.24em] text-gray-500">
+              Installation ID
+            </p>
+            <p className="mt-2 truncate text-lg font-semibold text-white">
+              {installation.id || installation.ftpUsername}
+            </p>
+          </div>
+        </div>
+
+        <div className="border-t border-gray-800 px-5 py-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-lg font-semibold text-white">Configured Cameras</p>
+              <p className="text-sm text-gray-400">
+                Full stream and network details for this installation.
+              </p>
+            </div>
+            <p className="text-[11px] uppercase tracking-[0.24em] text-gray-500">
+              {cameraCount} total
+            </p>
+          </div>
+
+          {cameraCount > 0 ? (
+            <div className="overflow-hidden rounded-xl border border-gray-800">
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-800 text-left">
+                  <thead className="bg-gray-900/90">
+                    <tr className="text-[11px] uppercase tracking-[0.22em] text-gray-500">
+                      <th className="px-4 py-3 font-medium">Camera</th>
+                      <th className="px-4 py-3 font-medium">IP Address</th>
+                      <th className="px-4 py-3 font-medium">Stream Path</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800 bg-gray-950/80">
+                    {installation.cameraDetails.map((camera, index) => (
+                      <tr key={`${installation.ftpUsername}-${camera.ip || index}`}>
+                        <td className="px-4 py-3 text-sm font-medium text-white">
+                          {camera.name || `Camera ${index + 1}`}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-300">
+                          {camera.ip || "Not provided"}
+                        </td>
+                        <td className="max-w-sm truncate px-4 py-3 text-sm text-gray-400">
+                          {camera.streamPath || "Not provided"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-gray-800 px-4 py-8 text-center text-sm text-gray-500">
+              No camera details received yet for this installation.
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -47,6 +199,7 @@ export default function DashboardClient({
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [isHydrated, setIsHydrated] = useState(false);
   const [dataError, setDataError] = useState(initialDataError);
+  const [selectedInstallation, setSelectedInstallation] = useState(null);
 
   useEffect(() => {
     setIsHydrated(true);
@@ -118,36 +271,92 @@ export default function DashboardClient({
             label="Total Installations"
             value={totalCount}
             accent="text-white"
-            helper="All registered VMS clients tracked by LogicEye."
+            helper="Tracked VMS clients"
           />
           <StatCard
             label="Online Now"
             value={onlineCount}
             accent="text-emerald-300"
-            helper="Installations that pinged within the last 20 minutes."
+            helper="Pinged in 20 minutes"
           />
           <StatCard
             label="Offline"
             value={offlineCount}
             accent="text-red-300"
-            helper="Installations missing recent heartbeats."
+            helper="Missing recent heartbeat"
           />
           <StatCard
             label="Last Updated"
             value={mostRecentPing && isHydrated ? formatRelativeLabel(new Date(mostRecentPing)) : "N/A"}
             accent="text-violet-300"
-            helper="Most recent heartbeat seen by the dashboard."
+            helper="Most recent heartbeat"
           />
         </div>
 
         {installations.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {installations.map((installation) => (
-              <InstallationCard
-                key={installation.id || installation.ftpUsername}
-                installation={installation}
-              />
-            ))}
+          <div className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-900/70 shadow-xl shadow-black/10">
+            <div className="flex items-center justify-between border-b border-gray-800 px-5 py-4">
+              <div>
+                <p className="text-[11px] uppercase tracking-[0.28em] text-violet-300">
+                  Installations
+                </p>
+                <h2 className="mt-1 text-lg font-semibold text-white">
+                  Click any row to open details
+                </h2>
+              </div>
+              <p className="text-sm text-gray-400">{totalCount} total records</p>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-800 text-left">
+                <thead className="bg-gray-950/80">
+                  <tr className="text-[11px] uppercase tracking-[0.22em] text-gray-500">
+                    <th className="px-5 py-3 font-medium">Installation</th>
+                    <th className="px-5 py-3 font-medium">Status</th>
+                    <th className="px-5 py-3 font-medium">Cameras</th>
+                    <th className="px-5 py-3 font-medium">Last Ping</th>
+                    <th className="px-5 py-3 font-medium">Location</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-800">
+                  {installations.map((installation) => (
+                    <tr
+                      key={installation.id || installation.ftpUsername}
+                      onClick={() => setSelectedInstallation(installation)}
+                      className="cursor-pointer bg-gray-950/30 transition hover:bg-violet-500/10"
+                    >
+                      <td className="px-5 py-4">
+                        <p className="font-medium text-white">{installation.ftpUsername}</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {installation.id || "No explicit ID"}
+                        </p>
+                      </td>
+                      <td className="px-5 py-4">
+                        <StatusBadge isOnline={installation.isOnline} />
+                      </td>
+                      <td className="px-5 py-4 text-sm text-gray-200">
+                        {installation.cameraDetails?.length || 0}
+                      </td>
+                      <td className="px-5 py-4">
+                        <p className="text-sm text-gray-200">
+                          {installation.lastPing && isHydrated
+                            ? formatRelativeLabel(new Date(installation.lastPing))
+                            : "No ping yet"}
+                        </p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {isHydrated
+                            ? formatAbsoluteLabel(installation.lastPing)
+                            : "Loading timestamp..."}
+                        </p>
+                      </td>
+                      <td className="px-5 py-4 text-sm text-gray-400">
+                        {installation.location || "Not provided"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : (
           <div className="rounded-2xl border border-dashed border-gray-800 bg-gray-900/60 px-6 py-16 text-center">
@@ -166,6 +375,14 @@ export default function DashboardClient({
             </p>
           </div>
         )}
+
+        {selectedInstallation ? (
+          <InstallationDetailsModal
+            installation={selectedInstallation}
+            onClose={() => setSelectedInstallation(null)}
+            isHydrated={isHydrated}
+          />
+        ) : null}
       </section>
     </main>
   );
