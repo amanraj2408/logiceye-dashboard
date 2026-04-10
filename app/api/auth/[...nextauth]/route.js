@@ -1,9 +1,17 @@
-import bcrypt from "bcryptjs";
+import { timingSafeEqual } from "node:crypto";
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
-const ADMIN_USERNAME = "admin";
-const ADMIN_PASSWORD_HASH = bcrypt.hashSync("logiceye@2024", 10);
+function safeEqual(left, right) {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+
+  if (leftBuffer.length !== rightBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(leftBuffer, rightBuffer);
+}
 
 export const authOptions = {
   secret: process.env.NEXTAUTH_SECRET,
@@ -31,11 +39,18 @@ export const authOptions = {
           return null;
         }
 
-        const isValidUser = credentials.username === ADMIN_USERNAME;
-        const isValidPassword = await bcrypt.compare(
-          credentials.password,
-          ADMIN_PASSWORD_HASH
-        );
+        const adminUsername = process.env.ADMIN_USERNAME;
+        const adminPassword = process.env.ADMIN_PASSWORD;
+
+        if (!adminUsername || !adminPassword) {
+          console.error(
+            "[NextAuth] ADMIN_USERNAME or ADMIN_PASSWORD is not configured."
+          );
+          return null;
+        }
+
+        const isValidUser = safeEqual(credentials.username, adminUsername);
+        const isValidPassword = safeEqual(credentials.password, adminPassword);
 
         if (!isValidUser || !isValidPassword) {
           return null;
@@ -44,7 +59,7 @@ export const authOptions = {
         return {
           id: "logiceye-admin",
           name: "LogicEye Admin",
-          username: ADMIN_USERNAME,
+          username: adminUsername,
         };
       },
     }),
@@ -71,4 +86,3 @@ export const authOptions = {
 const handler = NextAuth(authOptions);
 
 export { handler as GET, handler as POST };
-

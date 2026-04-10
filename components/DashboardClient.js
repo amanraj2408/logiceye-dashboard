@@ -45,6 +45,152 @@ function formatAbsoluteLabel(timestamp) {
   });
 }
 
+function buildPingHistory(installation) {
+  const history = Array.isArray(installation.pingHistory)
+    ? installation.pingHistory
+    : [];
+
+  if (history.length > 0) {
+    return [...history]
+      .filter((entry) => entry?.timestamp)
+      .sort(
+        (left, right) =>
+          new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime()
+      );
+  }
+
+  if (installation.lastPing) {
+    return [
+      {
+        timestamp: installation.lastPing,
+        status: installation.isOnline ? "online" : "offline",
+        camCount: installation.cameraDetails?.length || 0,
+      },
+    ];
+  }
+
+  return [];
+}
+
+function SimplePingChart({ history, isHydrated }) {
+  if (history.length === 0) {
+    return (
+      <div className="flex h-48 items-center justify-center rounded-xl border border-dashed border-gray-800 text-sm text-gray-500">
+        Ping history will appear here after new heartbeats arrive.
+      </div>
+    );
+  }
+
+  const chartEntries = history.slice(-12);
+  const width = 720;
+  const height = 180;
+  const maxCount = Math.max(...chartEntries.map((entry) => entry.camCount || 0), 1);
+  const stepX = chartEntries.length > 1 ? width / (chartEntries.length - 1) : width;
+
+  const areaPoints = chartEntries
+    .map((entry, index) => {
+      const x = chartEntries.length === 1 ? width / 2 : index * stepX;
+      const y =
+        height - ((entry.camCount || 0) / maxCount) * (height - 44) - 22;
+
+      return `${x},${y}`;
+    })
+    .join(" ");
+
+  const areaPath = `M 0 ${height} ${areaPoints ? `L ${areaPoints} L ${width} ${height}` : ""} Z`;
+
+  return (
+    <div className="rounded-xl border border-gray-800 bg-gray-900/60 p-4">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-lg font-semibold text-white">Ping Trend</p>
+          <p className="text-sm text-gray-400">
+            Last {chartEntries.length} heartbeats and camera counts.
+          </p>
+        </div>
+        <p className="text-[11px] uppercase tracking-[0.24em] text-gray-500">
+          Activity
+        </p>
+      </div>
+
+      <div className="relative">
+        <svg
+          viewBox={`0 0 ${width} ${height}`}
+          className="h-48 w-full"
+          preserveAspectRatio="none"
+          aria-label="Ping history chart"
+        >
+          <defs>
+            <linearGradient id="pingAreaGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="rgba(167, 139, 250, 0.55)" />
+              <stop offset="100%" stopColor="rgba(167, 139, 250, 0.02)" />
+            </linearGradient>
+          </defs>
+
+          <line
+            x1="0"
+            y1={height - 1}
+            x2={width}
+            y2={height - 1}
+            stroke="rgba(55, 65, 81, 1)"
+            strokeWidth="1"
+          />
+
+          <path d={areaPath} fill="url(#pingAreaGradient)" />
+
+          <polyline
+            fill="none"
+            stroke="rgba(167, 139, 250, 0.95)"
+            strokeWidth="3"
+            points={areaPoints}
+          />
+
+          {chartEntries.map((entry, index) => {
+            const x = chartEntries.length === 1 ? width / 2 : index * stepX;
+            const y =
+              height - ((entry.camCount || 0) / maxCount) * (height - 44) - 22;
+
+            return (
+              <g key={`${entry.timestamp}-${index}`}>
+                <circle
+                  cx={x}
+                  cy={y}
+                  r="4.5"
+                  fill={
+                    entry.status === "offline"
+                      ? "rgba(248, 113, 113, 1)"
+                      : "rgba(167, 139, 250, 1)"
+                  }
+                  stroke="rgba(3, 7, 18, 1)"
+                  strokeWidth="2"
+                />
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-gray-500 md:grid-cols-4">
+        {chartEntries.slice(-4).map((entry) => (
+          <div
+            key={entry.timestamp}
+            className="rounded-lg border border-gray-800 bg-gray-950/70 px-3 py-2"
+          >
+            <p className="font-medium text-gray-300">
+              {isHydrated
+                ? formatRelativeLabel(new Date(entry.timestamp))
+                : "Loading..."}
+            </p>
+            <p className="mt-1 truncate">
+              {isHydrated ? formatAbsoluteLabel(entry.timestamp) : "Loading..."}
+            </p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function StatCard({ label, value, accent, helper }) {
   return (
     <div className="rounded-xl border border-gray-800 bg-gray-900/80 px-4 py-3">
@@ -61,6 +207,8 @@ function StatCard({ label, value, accent, helper }) {
 
 function InstallationDetailsModal({ installation, onClose, isHydrated }) {
   const cameraCount = installation.cameraDetails?.length || 0;
+  const pingHistory = buildPingHistory(installation);
+  const recentPings = [...pingHistory].reverse();
 
   useEffect(() => {
     const handleEscape = (event) => {
@@ -80,7 +228,7 @@ function InstallationDetailsModal({ installation, onClose, isHydrated }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-3xl rounded-2xl border border-gray-800 bg-gray-950 shadow-2xl shadow-black/40">
+      <div className="max-h-[90vh] w-full max-w-5xl overflow-y-auto rounded-2xl border border-gray-800 bg-gray-950 shadow-2xl shadow-black/40">
         <div className="flex items-start justify-between gap-4 border-b border-gray-800 px-5 py-4">
           <div>
             <p className="text-[11px] uppercase tracking-[0.28em] text-gray-500">
@@ -139,6 +287,73 @@ function InstallationDetailsModal({ installation, onClose, isHydrated }) {
         </div>
 
         <div className="border-t border-gray-800 px-5 py-5">
+          <div className="mb-5">
+            <SimplePingChart history={pingHistory} isHydrated={isHydrated} />
+          </div>
+
+          <div className="mb-5 overflow-hidden rounded-xl border border-gray-800">
+            <div className="flex items-center justify-between border-b border-gray-800 bg-gray-900/90 px-4 py-3">
+              <div>
+                <p className="text-lg font-semibold text-white">Recent Heartbeats</p>
+                <p className="text-sm text-gray-400">
+                  Full details of the latest ping events received for this installation.
+                </p>
+              </div>
+              <p className="text-[11px] uppercase tracking-[0.24em] text-gray-500">
+                {recentPings.length} stored
+              </p>
+            </div>
+
+            {recentPings.length > 0 ? (
+              <div className="max-h-72 overflow-auto">
+                <table className="min-w-full divide-y divide-gray-800 text-left">
+                  <thead className="sticky top-0 bg-gray-950/95 backdrop-blur">
+                    <tr className="text-[11px] uppercase tracking-[0.22em] text-gray-500">
+                      <th className="px-4 py-3 font-medium">Timestamp</th>
+                      <th className="px-4 py-3 font-medium">Relative</th>
+                      <th className="px-4 py-3 font-medium">Status</th>
+                      <th className="px-4 py-3 font-medium">Camera Count</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-800 bg-gray-950/70">
+                    {recentPings.map((entry, index) => (
+                      <tr key={`${entry.timestamp}-${index}`}>
+                        <td className="px-4 py-3 text-sm text-gray-200">
+                          {isHydrated
+                            ? formatAbsoluteLabel(entry.timestamp)
+                            : "Loading timestamp..."}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-400">
+                          {isHydrated
+                            ? formatRelativeLabel(new Date(entry.timestamp))
+                            : "Loading..."}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex items-center rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] ${
+                              entry.status === "offline"
+                                ? "border-red-500/20 bg-red-500/10 text-red-200"
+                                : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                            }`}
+                          >
+                            {entry.status === "offline" ? "Offline" : "Online"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-300">
+                          {entry.camCount}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="px-4 py-8 text-center text-sm text-gray-500">
+                No ping history has been recorded for this installation yet.
+              </div>
+            )}
+          </div>
+
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <p className="text-lg font-semibold text-white">Configured Cameras</p>

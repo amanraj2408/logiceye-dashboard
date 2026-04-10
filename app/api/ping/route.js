@@ -1,15 +1,41 @@
 import { NextResponse } from "next/server";
+import { timingSafeEqual } from "node:crypto";
 import connectToDatabase from "../../../lib/mongodb";
 import Installation from "../../../lib/models/Installation";
 
-const TWENTY_MINUTES = 20 * 60 * 1000;
+const MAX_PING_HISTORY = 50;
 
 function corsHeaders() {
   return {
-    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Origin": "null",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Access-Control-Allow-Headers":
+      "Content-Type, Authorization, X-Ping-Api-Key",
   };
+}
+
+function safeEqual(left, right) {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+
+  if (leftBuffer.length !== rightBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(leftBuffer, rightBuffer);
+}
+
+function getPingApiKey(request, body) {
+  const authorization = request.headers.get("authorization");
+
+  if (authorization?.startsWith("Bearer ")) {
+    return authorization.slice("Bearer ".length).trim();
+  }
+
+  return (
+    request.headers.get("x-ping-api-key") ||
+    (typeof body?.apiKey === "string" ? body.apiKey.trim() : "")
+  );
 }
 
 function sanitizeCameraDetails(cameraDetails) {
@@ -33,7 +59,21 @@ export async function OPTIONS() {
 
 export async function POST(request) {
   try {
+    const pingApiKey = process.env.PING_API_KEY;
+
+    if (!pingApiKey) {
+      console.error("[LogicEye Ping Error] PING_API_KEY is not configured.");
+      return NextResponse.json(
+        { message: "Ping endpoint is not configured." },
+        {
+          status: 503,
+          headers: corsHeaders(),
+        }
+      );
+    }
+
     const body = await request.json();
+    const requestApiKey = getPingApiKey(request, body);
     const ftpUsername =
       typeof body?.ftpUsername === "string" ? body.ftpUsername.trim() : "";
     const passwordHash =
@@ -47,6 +87,16 @@ export async function POST(request) {
         ftpUsername || "unknown"
       } cameras=${cameraDetails.length}`
     );
+
+    if (!requestApiKey || !safeEqual(requestApiKey, pingApiKey)) {
+      return NextResponse.json(
+        { message: "Unauthorized ping request." },
+        {
+          status: 401,
+          headers: corsHeaders(),
+        }
+      );
+    }
 
     if (!ftpUsername || !passwordHash) {
       return NextResponse.json(
@@ -63,12 +113,26 @@ export async function POST(request) {
     const installation = await Installation.findOneAndUpdate(
       { ftpUsername },
       {
-        ftpUsername,
-        cameraDetails,
-        passwordHash,
-        lastPing: now,
-        isOnline: Date.now() - now.getTime() < TWENTY_MINUTES,
-        ...(location ? { location } : {}),
+        $set: {
+          ftpUsername,
+          cameraDetails,
+          passwordHash,
+          lastPing: now,
+          isOnline: true,
+          ...(location ? { location } : {}),
+        },
+        $push: {
+          pingHistory: {
+            $each: [
+              {
+                timestamp: now,
+                status: "online",
+                camCount: cameraDetails.length,
+              },
+            ],
+            $slice: -MAX_PING_HISTORY,
+          },
+        },
       },
       {
         upsert: true,

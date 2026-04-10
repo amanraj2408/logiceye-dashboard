@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 function CameraShieldIcon() {
   return (
@@ -39,7 +39,6 @@ function CameraShieldIcon() {
 }
 
 export default function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -57,6 +56,7 @@ export default function LoginForm() {
       username,
       password,
       redirect: false,
+      callbackUrl: "/dashboard",
     });
 
     if (result?.error) {
@@ -65,8 +65,7 @@ export default function LoginForm() {
       return;
     }
 
-    router.push("/dashboard");
-    router.refresh();
+    window.location.href = result?.url || "/dashboard";
   }
 
   return (
