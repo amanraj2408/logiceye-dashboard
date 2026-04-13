@@ -4,14 +4,14 @@ import { authOptions } from "../auth/[...nextauth]/route";
 import connectToDatabase from "../../../lib/mongodb";
 import Installation from "../../../lib/models/Installation";
 
-const TWENTY_MINUTES = 20 * 60 * 1000;
+const ONE_MINUTE = 60 * 1000;
 const INSTALLATION_FIELDS =
   "ftpUsername cameraDetails lastPing pingHistory location";
 
 function serializeInstallation(installation) {
   const lastPingDate = installation.lastPing ? new Date(installation.lastPing) : null;
   const isOnline = Boolean(
-    lastPingDate && Date.now() - lastPingDate.getTime() < TWENTY_MINUTES
+    lastPingDate && Date.now() - lastPingDate.getTime() < ONE_MINUTE
   );
 
   return {

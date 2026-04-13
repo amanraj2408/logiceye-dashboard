@@ -492,7 +492,7 @@ export default function DashboardClient({
             label="Online Now"
             value={onlineCount}
             accent="text-emerald-300"
-            helper="Pinged in 20 minutes"
+            helper="Pinged in 1 minute"
           />
           <StatCard
             label="Offline"
