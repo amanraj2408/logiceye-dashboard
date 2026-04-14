@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ONLINE_TIMEOUT_LABEL } from "../lib/installations";
 import Navbar from "./Navbar";
 import StatusBadge from "./StatusBadge";
 
@@ -411,7 +412,7 @@ export default function DashboardClient({
   dataError: initialDataError = "",
 }) {
   const [installations, setInstallations] = useState(initialInstallations);
-  const [lastUpdated, setLastUpdated] = useState(new Date());
+  const [lastUpdated, setLastUpdated] = useState(() => new Date());
   const [isHydrated, setIsHydrated] = useState(false);
   const [dataError, setDataError] = useState(initialDataError);
   const [selectedInstallation, setSelectedInstallation] = useState(null);
@@ -420,11 +421,13 @@ export default function DashboardClient({
     setIsHydrated(true);
 
     let mounted = true;
+    const abortController = new AbortController();
 
     async function refreshInstallations() {
       try {
         const response = await fetch("/api/installations", {
           cache: "no-store",
+          signal: abortController.signal,
         });
 
         if (!response.ok) {
@@ -442,6 +445,10 @@ export default function DashboardClient({
           setDataError("");
         }
       } catch (error) {
+        if (error?.name === "AbortError") {
+          return;
+        }
+
         console.error("[Dashboard Refresh Error]", error);
         if (mounted) {
           setDataError("Unable to refresh installation data.");
@@ -449,10 +456,12 @@ export default function DashboardClient({
       }
     }
 
+    refreshInstallations();
     const interval = setInterval(refreshInstallations, 60000);
 
     return () => {
       mounted = false;
+      abortController.abort();
       clearInterval(interval);
     };
   }, []);
@@ -492,7 +501,7 @@ export default function DashboardClient({
             label="Online Now"
             value={onlineCount}
             accent="text-emerald-300"
-            helper="Pinged in 1 minute"
+            helper={`Pinged in ${ONLINE_TIMEOUT_LABEL}`}
           />
           <StatCard
             label="Offline"
@@ -586,7 +595,7 @@ export default function DashboardClient({
               <span className="mx-1 rounded bg-gray-800 px-2 py-1 text-gray-200">
                 /api/ping
               </span>
-              every 15 minutes, installations will appear here automatically.
+              at the expected interval, installations will appear here automatically.
             </p>
           </div>
         )}

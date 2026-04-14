@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import NextAuth from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { requireEnv } from "../../../../lib/env";
 
 function safeEqual(left, right) {
   const leftBuffer = Buffer.from(left);
@@ -39,13 +40,14 @@ export const authOptions = {
           return null;
         }
 
-        const adminUsername = process.env.ADMIN_USERNAME;
-        const adminPassword = process.env.ADMIN_PASSWORD;
+        let adminUsername = "";
+        let adminPassword = "";
 
-        if (!adminUsername || !adminPassword) {
-          console.error(
-            "[NextAuth] ADMIN_USERNAME or ADMIN_PASSWORD is not configured."
-          );
+        try {
+          adminUsername = requireEnv("ADMIN_USERNAME");
+          adminPassword = requireEnv("ADMIN_PASSWORD");
+        } catch (error) {
+          console.error("[NextAuth Config Error]", error);
           return null;
         }
 

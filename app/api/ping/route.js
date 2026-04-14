@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import connectToDatabase from "../../../lib/mongodb";
+import { MAX_PING_HISTORY } from "../../../lib/installations";
 import Installation from "../../../lib/models/Installation";
-
-const MAX_PING_HISTORY = 50;
+import { requireEnv } from "../../../lib/env";
 
 function corsHeaders() {
   return {
@@ -43,11 +43,22 @@ function sanitizeCameraDetails(cameraDetails) {
     return [];
   }
 
-  return cameraDetails.map((camera) => ({
-    name: typeof camera?.name === "string" ? camera.name : "",
-    ip: typeof camera?.ip === "string" ? camera.ip : "",
-    streamPath: typeof camera?.streamPath === "string" ? camera.streamPath : "",
+  return cameraDetails.slice(0, 64).map((camera) => ({
+    name: typeof camera?.name === "string" ? camera.name.trim().slice(0, 120) : "",
+    ip: typeof camera?.ip === "string" ? camera.ip.trim().slice(0, 120) : "",
+    streamPath:
+      typeof camera?.streamPath === "string"
+        ? camera.streamPath.trim().slice(0, 512)
+        : "",
   }));
+}
+
+async function readJsonBody(request) {
+  try {
+    return await request.json();
+  } catch {
+    return null;
+  }
 }
 
 export async function OPTIONS() {
@@ -59,10 +70,12 @@ export async function OPTIONS() {
 
 export async function POST(request) {
   try {
-    const pingApiKey = process.env.PING_API_KEY;
+    let pingApiKey = "";
 
-    if (!pingApiKey) {
-      console.error("[LogicEye Ping Error] PING_API_KEY is not configured.");
+    try {
+      pingApiKey = requireEnv("PING_API_KEY");
+    } catch (error) {
+      console.error("[LogicEye Ping Config Error]", error);
       return NextResponse.json(
         { message: "Ping endpoint is not configured." },
         {
@@ -72,21 +85,27 @@ export async function POST(request) {
       );
     }
 
-    const body = await request.json();
+    const body = await readJsonBody(request);
+
+    if (!body || typeof body !== "object") {
+      return NextResponse.json(
+        { message: "Request body must be valid JSON." },
+        {
+          status: 400,
+          headers: corsHeaders(),
+        }
+      );
+    }
+
     const requestApiKey = getPingApiKey(request, body);
     const ftpUsername =
-      typeof body?.ftpUsername === "string" ? body.ftpUsername.trim() : "";
+      typeof body.ftpUsername === "string" ? body.ftpUsername.trim().slice(0, 120) : "";
     const passwordHash =
-      typeof body?.passwordHash === "string" ? body.passwordHash : "";
-    const location = typeof body?.location === "string" ? body.location.trim() : "";
+      typeof body.passwordHash === "string" ? body.passwordHash.trim().slice(0, 255) : "";
+    const location =
+      typeof body.location === "string" ? body.location.trim().slice(0, 200) : "";
     const cameraDetails = sanitizeCameraDetails(body?.cameraDetails);
     const now = new Date();
-
-    console.log(
-      `[LogicEye Ping] ${now.toISOString()} ftpUsername=${
-        ftpUsername || "unknown"
-      } cameras=${cameraDetails.length}`
-    );
 
     if (!requestApiKey || !safeEqual(requestApiKey, pingApiKey)) {
       return NextResponse.json(
@@ -145,6 +164,7 @@ export async function POST(request) {
       {
         message: "Ping received successfully.",
         installationId: installation.ftpUsername,
+        receivedAt: now.toISOString(),
       },
       {
         status: 200,
