@@ -6,13 +6,14 @@ import Installation from "../../lib/models/Installation";
 import DashboardClient from "../../components/DashboardClient";
 
 const ONE_MINUTE = 60 * 1000;
+const ONLINE_TIMEOUT = 20 * ONE_MINUTE;
 const INSTALLATION_FIELDS =
   "ftpUsername cameraDetails lastPing pingHistory location";
 
 function serializeInstallation(installation) {
   const lastPingDate = installation.lastPing ? new Date(installation.lastPing) : null;
   const isOnline = Boolean(
-    lastPingDate && Date.now() - lastPingDate.getTime() < ONE_MINUTE
+    lastPingDate && Date.now() - lastPingDate.getTime() < ONLINE_TIMEOUT
   );
 
   return {
